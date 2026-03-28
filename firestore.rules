@@ -1,0 +1,82 @@
+// ===============================================================
+// Assumed Data Model
+// ===============================================================
+//
+// Collection: users
+// Document ID: {email} (User's email address)
+// Fields:
+//   - charts: string (required) - JSON stringified array of Chart objects
+//   - lastUpdated: string (required) - ISO 8601 timestamp
+//
+// ===============================================================
+
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+    
+    // Check if the user is authenticated
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    // Check if the user's email matches the document ID
+    function isOwner(email) {
+      return isAuthenticated() && request.auth.token.email == email;
+    }
+
+    // Validate UserProfile data
+    function isValidUserProfile(data) {
+      return data.keys().hasAll(['charts', 'lastUpdated', 'credits', 'isSubscribed', 'role']) &&
+             data.charts is string &&
+             data.lastUpdated is string &&
+             data.credits is int &&
+             data.credits >= 0 &&
+             data.isSubscribed is bool &&
+             data.role in ['admin', 'user'] &&
+             data.keys().hasOnly(['charts', 'lastUpdated', 'credits', 'isSubscribed', 'role']);
+    }
+
+    // Check if the user is an admin
+    function isAdmin() {
+      return isAuthenticated() && 
+        (get(/databases/$(database)/documents/users/$(request.auth.token.email)).data.role == 'admin' ||
+         (request.auth.token.email == "lirondavid3@gmail.com" && request.auth.token.email_verified == true));
+    }
+
+    // ===============================================================
+    // Rules
+    // ===============================================================
+
+    match /users/{email} {
+      // Allow read if the user is the owner or an admin
+      allow read: if isOwner(email) || isAdmin();
+      
+      // Allow create if the user is the owner (with default role) or an admin
+      allow create: if isAuthenticated() && isValidUserProfile(request.resource.data) && 
+                    (isOwner(email) && request.resource.data.role == 'user' || isAdmin());
+                    
+      // Allow update if the user is the owner (role unchanged) or an admin
+      allow update: if isAuthenticated() && isValidUserProfile(request.resource.data) && 
+                    (isOwner(email) && request.resource.data.role == resource.data.role || isAdmin());
+                    
+      allow delete: if isAdmin();
+      
+      // Allow admin to list all users
+      allow list: if isAdmin();
+    }
+
+    // Connection test collection
+    match /test/connection {
+      allow read: if true;
+    }
+
+    // Default deny
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

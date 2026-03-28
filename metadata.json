@@ -1,0 +1,9 @@
+{
+  "name": "מפות ישיבה וחלוקה לקבוצות - גרסה 1.1.5",
+  "description": "מערכת לניהול וסידור מקומות ישיבה וחלוקה לקבוצות - גרסה 1.1.4",
+  "requestFramePermissions": [
+    "camera",
+    "microphone",
+    "geolocation"
+  ]
+}
